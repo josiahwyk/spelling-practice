@@ -1,0 +1,589 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spelling Practice</title>
+<style>
+  :root{
+    --board:#1E3229;
+    --board-deep:#16241D;
+    --chalk:#F3EFE2;
+    --chalk-dim:rgba(243,239,226,.5);
+    --chalk-faint:rgba(243,239,226,.16);
+    --yellow:#F2C14E;
+    --mint:#86C9A8;
+    --paper:#E8EDE7;
+    --paper-line:#C3D2C8;
+    --sage:#9FB6A8;
+    --ink:#233129;
+    --ink-dim:#5C6E63;
+    --font-chalk:"Chalkboard SE","Comic Sans MS","Marker Felt",ui-rounded,system-ui,sans-serif;
+    --font-ui:ui-rounded,"SF Pro Rounded",-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font-ui);background:var(--board);overflow:hidden;-webkit-text-size-adjust:100%}
+  button,textarea,input{font:inherit;color:inherit;touch-action:manipulation}
+  button{cursor:pointer;border:0;background:none;-webkit-user-select:none;user-select:none}
+
+  .screen{position:fixed;inset:0;display:none;flex-direction:column;
+    padding:max(20px,env(safe-area-inset-top)) 20px max(20px,env(safe-area-inset-bottom))}
+  .screen.on{display:flex}
+
+  /* ---------- Parent setup ---------- */
+  #setup{background:var(--paper);color:var(--ink);overflow-y:auto}
+  .sheet{width:100%;max-width:620px;margin:auto;padding:8px 0 32px}
+  .head-row{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+  .sheet h1{font-family:var(--font-chalk);font-size:29px;font-weight:400;letter-spacing:-.2px}
+  .sheet .sub{color:var(--ink-dim);font-size:15px;margin-top:6px;line-height:1.45;max-width:44ch}
+  .doodle{width:104px;height:auto;flex-shrink:0;opacity:.85}
+  .field{margin-top:26px}
+  .field label{display:block;font-size:14px;color:var(--ink-dim);margin-bottom:8px}
+  #words{width:100%;height:246px;padding:8px 14px;
+    border:1.5px solid var(--paper-line);border-radius:10px;
+    background:repeating-linear-gradient(to bottom,transparent 0 40px,var(--paper-line) 40px 41px) 0 0/100% 41px,#F3F6F2;
+    font-family:var(--font-chalk);font-size:22px;line-height:41px;color:var(--ink);resize:none;outline:none}
+  #words:focus{border-color:var(--board)}
+  .count{font-size:14px;color:var(--ink-dim);margin-top:8px}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  input[type=range]{flex:1;min-width:170px;accent-color:var(--board);height:34px}
+  .tiny-btn{padding:13px 20px;border-radius:10px;border:1.5px solid var(--board);color:var(--board);font-size:15px;white-space:nowrap}
+  .tiny-btn:active{background:var(--board);color:var(--paper)}
+  .rate-val{font-family:var(--font-chalk);font-size:17px;min-width:52px;text-align:right;color:var(--ink-dim)}
+  .note{font-size:13px;color:var(--ink-dim);margin-top:10px;line-height:1.5}
+  .seg{display:inline-flex;border:1.5px solid var(--paper-line);border-radius:10px;overflow:hidden}
+  .seg button{padding:13px 20px;font-size:15px;color:var(--ink-dim);background:#F3F6F2}
+  .seg button+button{border-left:1.5px solid var(--paper-line)}
+  .seg button[aria-pressed="true"]{background:var(--board);color:var(--paper)}
+  .linkbtn{font-size:13px;color:var(--ink-dim);text-decoration:underline;
+    text-underline-offset:3px;padding:8px 0}
+  #start{width:100%;margin-top:34px;padding:24px;border-radius:16px;
+    background:var(--board);color:var(--chalk);font-family:var(--font-chalk);font-size:26px}
+  #start:disabled{opacity:.32}
+  #start:not(:disabled):active{transform:scale(.98)}
+
+  /* ---------- Chalkboard ---------- */
+  .board{background:radial-gradient(120% 100% at 50% 0%,#26402F 0%,var(--board) 45%,var(--board-deep) 100%);color:var(--chalk)}
+  .board::after{content:"";position:absolute;inset:10px;border:2px solid var(--chalk-faint);border-radius:6px;pointer-events:none}
+  .home{position:absolute;top:max(16px,env(safe-area-inset-top));left:18px;
+    width:54px;height:54px;border-radius:14px;border:2px solid var(--chalk-faint);
+    color:var(--chalk);opacity:.55;display:flex;align-items:center;justify-content:center;z-index:3}
+  .home:active{opacity:1;background:rgba(243,239,226,.08)}
+
+  /* ---------- Practice ---------- */
+  #practice{align-items:center;justify-content:space-between}
+  .dots{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;max-width:520px;padding-top:16px}
+  .dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--chalk-dim)}
+  .dot.done{background:var(--mint);border-color:var(--mint)}
+  .dot.now{background:var(--yellow);border-color:var(--yellow);transform:scale(1.28)}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%}
+  .controls{display:flex;align-items:center;gap:clamp(18px,5vw,52px);padding-bottom:6px}
+  .ctrl{display:flex;flex-direction:column;align-items:center}
+  .prev{width:clamp(92px,15vw,112px);height:clamp(92px,15vw,112px);border-radius:50%;
+    border:3px solid var(--chalk-dim);color:var(--chalk-dim);display:flex;align-items:center;justify-content:center}
+  .prev:active{background:rgba(243,239,226,.08)}
+  .prev[disabled]{opacity:.18;pointer-events:none}
+  .say{width:clamp(148px,24vw,184px);height:clamp(148px,24vw,184px);border-radius:50%;
+    border:4px solid var(--yellow);color:var(--yellow);display:flex;align-items:center;justify-content:center}
+  .say:active{background:rgba(242,193,78,.18);transform:scale(.96)}
+  .next{width:clamp(124px,20vw,152px);height:clamp(124px,20vw,152px);border-radius:50%;
+    background:var(--mint);color:var(--board-deep);display:flex;align-items:center;justify-content:center}
+  .next:active{transform:scale(.96)}
+  .caption{text-align:center;font-family:var(--font-chalk);font-size:15px;color:var(--chalk-dim);margin-top:9px}
+
+  /* ---------- Review ---------- */
+  #review{overflow-y:auto;padding-top:max(24px,env(safe-area-inset-top))}
+  .rv-head{display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap;padding:4px 0}
+  .rv-head h2{font-family:var(--font-chalk);font-weight:400;font-size:clamp(26px,4.6vw,38px)}
+  .rv-head p{color:var(--chalk-dim);font-size:15px;margin-top:6px}
+  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+    gap:8px 22px;max-width:900px;width:100%;margin:18px auto;padding:0 6px}
+  .word{display:flex;align-items:baseline;gap:14px;padding:10px 14px;border-radius:12px;
+    border:2px solid transparent;text-align:left;width:100%}
+  .word:active{border-color:var(--chalk-faint);background:rgba(243,239,226,.06)}
+  .word .n{font-family:var(--font-ui);font-size:15px;color:var(--chalk-dim);min-width:24px}
+  .word .w{font-family:var(--font-chalk);font-size:clamp(28px,4.4vw,38px);letter-spacing:.5px}
+  .rv-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;padding:8px 0 20px}
+  .rv-actions button{padding:18px 30px;border-radius:14px;font-family:var(--font-chalk);
+    font-size:20px;border:2px solid var(--chalk-dim);color:var(--chalk)}
+  .rv-actions button:active{background:rgba(243,239,226,.1)}
+
+  /* ---------- Dinosaurs ---------- */
+  .dinoWrap{display:flex;align-items:center;gap:8px}
+  .waves{width:30px;height:auto;opacity:0;transition:opacity .2s}
+  .dinoWrap[data-state="speaking"] .waves{opacity:1}
+  .dinoSlot svg{width:clamp(190px,28vw,290px);max-height:36vh;height:auto;display:block}
+  .rex{width:clamp(118px,15vw,160px);height:auto}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+  @keyframes hop{0%,100%{transform:translateY(0)}30%{transform:translateY(-16px)}62%{transform:translateY(-4px)}}
+  .dinoWrap[data-state="idle"] .dinoSlot{animation:bob 3.6s ease-in-out infinite}
+  .dinoWrap[data-state="speaking"] .dinoSlot{animation:bob 1.6s ease-in-out infinite}
+  .rex{animation:hop 1s ease-out 2}
+  @media (prefers-reduced-motion:reduce){.dinoSlot,.rex{animation:none!important}}
+</style>
+
+<!-- ================= SETUP ================= -->
+<section id="setup" class="screen on">
+  <div class="sheet">
+    <div class="head-row">
+      <div>
+        <h1>This week's words</h1>
+        <p class="sub">Type one word per line. He'll hear each word, write it on paper, then check the whole list at the end.</p>
+      </div>
+      <svg class="doodle" viewBox="0 0 250 150" aria-hidden="true">
+        <g fill="#9FB6A8">
+          <path d="M192 100 C216 96 230 88 242 74 C240 92 228 108 200 118 Z"/>
+          <path d="M46 118 C38 84 72 56 120 56 C166 56 196 80 202 108 L202 120 Z"/>
+          <path d="M62 86 L67 54 L82 82 Z"/>
+          <path d="M86 70 L95 34 L110 66 Z"/>
+          <path d="M114 60 L124 24 L139 58 Z"/>
+          <path d="M143 64 L155 32 L166 66 Z"/>
+          <path d="M170 80 L182 52 L190 84 Z"/>
+          <g stroke="#9FB6A8" stroke-linecap="round" fill="none">
+            <path d="M56 100 C44 106 34 110 26 112" stroke-width="21"/>
+            <path d="M68 116 v22" stroke-width="18"/>
+            <path d="M98 118 v22" stroke-width="18"/>
+            <path d="M154 118 v22" stroke-width="18"/>
+            <path d="M182 114 v24" stroke-width="18"/>
+            <path d="M224 84 l12 -12" stroke-width="7"/>
+            <path d="M214 96 l14 -6" stroke-width="7"/>
+          </g>
+          <ellipse cx="20" cy="112" rx="18" ry="13"/>
+          <ellipse cx="5" cy="116" rx="9" ry="7"/>
+        </g>
+        <circle cx="16" cy="107" r="3.2" fill="#233129"/>
+        <circle cx="17" cy="106" r="1.2" fill="#E8EDE7"/>
+        <path d="M2 121 q7 4 12 0" stroke="#233129" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <div class="field">
+      <label for="words">Word list</label>
+      <textarea id="words" spellcheck="false" autocapitalize="off" autocorrect="off"
+        placeholder="there&#10;should&#10;could&#10;come"></textarea>
+      <div class="count" id="count">No words yet</div>
+    </div>
+
+    <div class="field">
+      <label for="rate">Speaking speed</label>
+      <div class="row">
+        <input type="range" id="rate" min="0.5" max="1.2" step="0.05" value="0.8">
+        <span class="rate-val" id="rateVal">0.8&times;</span>
+        <button class="tiny-btn" id="test">Hear it</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Say each word</label>
+      <div class="seg" id="seg">
+        <button data-times="1" aria-pressed="false">Once</button>
+        <button data-times="2" aria-pressed="true">Twice</button>
+        <button data-times="3" aria-pressed="false">3 times</button>
+      </div>
+    </div>
+
+    <button id="start" disabled>Start</button>
+  </div>
+</section>
+
+<!-- ================= PRACTICE ================= -->
+<section id="practice" class="screen board">
+  <button class="home" id="homeBtn" aria-label="Back to word list">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/>
+    </svg>
+  </button>
+
+  <div class="dots" id="dots"></div>
+
+  <div class="stage">
+    <div class="dinoWrap" id="dinoBox" data-state="idle">
+      <svg class="waves" viewBox="0 0 30 60" aria-hidden="true">
+        <g stroke="#F2C14E" stroke-width="4" fill="none" stroke-linecap="round">
+          <path d="M22 18 Q14 30 22 42"/>
+          <path d="M10 8 Q0 30 10 52"/>
+        </g>
+      </svg>
+      <div class="dinoSlot" id="dinoSlot"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl">
+      <button class="prev" id="prev" aria-label="Previous word">
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H6"/><path d="M12 5l-7 7 7 7"/>
+        </svg>
+      </button>
+      <div class="caption">Back</div>
+    </div>
+    <div class="ctrl">
+      <button class="say" id="say" aria-label="Say the word again">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 5 6 9H3v6h3l5 4V5z"/>
+          <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+          <path d="M18.5 5.5a9 9 0 0 1 0 13"/>
+        </svg>
+      </button>
+      <div class="caption">Again</div>
+    </div>
+    <div class="ctrl">
+      <button class="next" id="next" aria-label="Next word">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h13"/><path d="M12 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <div class="caption">Next</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= REVIEW ================= -->
+<section id="review" class="screen board">
+  <button class="home" id="homeBtn2" aria-label="Back to word list">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20h13V9.5"/>
+    </svg>
+  </button>
+
+  <div class="rv-head">
+    <svg class="rex" viewBox="0 0 250 200" aria-hidden="true">
+      <g fill="#F2C14E">
+        <path d="M166 116 C202 106 224 118 242 146 C210 146 186 138 162 130 Z"/>
+        <ellipse cx="130" cy="126" rx="42" ry="39"/>
+        <g stroke="#F2C14E" stroke-linecap="round" fill="none">
+          <path d="M92 76 C100 92 106 104 114 112" stroke-width="30"/>
+          <path d="M104 116 l-14 -20" stroke-width="11"/>
+          <path d="M118 112 l-6 -22" stroke-width="11"/>
+          <path d="M112 156 v20" stroke-width="33"/>
+          <path d="M150 154 v22" stroke-width="27"/>
+          <path d="M96 180 h32" stroke-width="15"/>
+          <path d="M138 180 h30" stroke-width="15"/>
+        </g>
+        <ellipse cx="72" cy="48" rx="40" ry="29"/>
+        <ellipse cx="34" cy="56" rx="18" ry="15"/>
+      </g>
+      <circle cx="76" cy="36" r="5.2" fill="#16241D"/>
+      <circle cx="78" cy="34" r="1.9" fill="#F3EFE2"/>
+      <path d="M30 62 q24 16 50 4" stroke="#16241D" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+      <path d="M44 66 l4 8 l7 -6 Z" fill="#F3EFE2"/>
+    </svg>
+    <div>
+      <h2 id="rvTitle">All done</h2>
+      <p>Check your writing. Tap a word to hear it again.</p>
+    </div>
+  </div>
+
+  <div class="list" id="list"></div>
+  <div class="rv-actions">
+    <button id="again">Practise again</button>
+    <button id="newList">New list</button>
+  </div>
+</section>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var KEY = 'spelling:v1';
+  var state = { words:[], i:0, rate:0.8, times:2, raw:'' };
+  var chosen = null, ranked = [], vIdx = 0, seq = 0, wake = null;
+  var GAP = 1500;
+
+  function show(id){
+    var s = document.querySelectorAll('.screen');
+    for (var k=0;k<s.length;k++) s[k].classList.toggle('on', s[k].id === id);
+  }
+
+  /* ---------- voice ranking: Karen first, highest quality tier first ---------- */
+  var NOVELTY = ['albert','bad news','bahh','bells','boing','bubbles','cellos','deranged',
+    'good news','jester','organ','superstar','trinoids','whisper','wobble','zarvox','junior',
+    'ralph','fred','kathy','bruce','grandma','grandpa','rocko','shelley','sandy','flo','eddy','reed'];
+
+  function score(v){
+    var n = (v.name||'').toLowerCase(), l = (v.lang||'').toLowerCase(), s = 0;
+    if (l.indexOf('en-au') === 0) s -= 60;
+    else if (l.indexOf('en-gb') === 0 || l.indexOf('en-nz') === 0) s -= 25;
+    else if (l.indexOf('en') === 0) s -= 12;
+    else s += 500;
+    if (n.indexOf('karen') > -1) s -= 40;
+    if (n.indexOf('premium') > -1) s -= 10;
+    else if (n.indexOf('enhanced') > -1) s -= 8;
+    if (n.indexOf('compact') > -1) s += 6;
+    for (var k=0;k<NOVELTY.length;k++) if (n.indexOf(NOVELTY[k]) > -1) s += 400;
+    return s;
+  }
+  function pickVoice(){
+    if (!('speechSynthesis' in window)) return;
+    var list = speechSynthesis.getVoices();
+    if (!list.length) return;
+    ranked = list.slice().sort(function(a,b){ return score(a) - score(b); });
+    chosen = ranked[0];
+  }
+
+
+  /* ---------- dinosaur library: one per word ---------- */
+  var COLORS = ['#86C9A8','#F2C14E','#EE9AA6','#8FC0DC','#F0A882'];
+  var EYE = '#16241D', GLINT = '#F3EFE2';
+  function svg(inner){
+    return '<svg viewBox="0 0 250 210" aria-hidden="true">' + inner + '</svg>';
+  }
+  var DINOS = [
+    /* brontosaurus */
+    svg('<g fill="currentColor">'
+      + '<path d="M180 152 C214 142 234 154 246 184 C216 182 194 174 174 164 Z"/>'
+      + '<ellipse cx="134" cy="152" rx="54" ry="37"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M112 134 C86 114 72 74 70 38" stroke-width="25"/>'
+      + '<path d="M104 182 v20" stroke-width="23"/><path d="M136 184 v18" stroke-width="23"/>'
+      + '<path d="M164 180 v22" stroke-width="23"/></g>'
+      + '<ellipse cx="64" cy="32" rx="23" ry="17"/><ellipse cx="42" cy="37" rx="13" ry="10"/></g>'
+      + '<circle cx="58" cy="26" r="4.4" fill="'+EYE+'"/><circle cx="59.5" cy="24.4" r="1.6" fill="'+GLINT+'"/>'
+      + '<path d="M36 44 q7 6 13 2" stroke="'+EYE+'" stroke-width="2.8" fill="none" stroke-linecap="round"/>'),
+
+    /* stegosaurus */
+    svg('<g fill="currentColor">'
+      + '<path d="M192 142 C216 138 230 130 242 116 C240 134 228 150 200 160 Z"/>'
+      + '<path d="M46 160 C38 126 72 98 120 98 C166 98 196 122 202 150 L202 162 Z"/>'
+      + '<path d="M62 128 L67 96 L82 124 Z"/><path d="M86 112 L95 76 L110 108 Z"/>'
+      + '<path d="M114 102 L124 66 L139 100 Z"/><path d="M143 106 L155 74 L166 108 Z"/>'
+      + '<path d="M170 122 L182 94 L190 126 Z"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M56 142 C44 148 34 152 26 154" stroke-width="21"/>'
+      + '<path d="M68 158 v34" stroke-width="18"/><path d="M98 160 v32" stroke-width="18"/>'
+      + '<path d="M154 160 v32" stroke-width="18"/><path d="M182 156 v36" stroke-width="18"/>'
+      + '<path d="M224 126 l12 -12" stroke-width="7"/><path d="M214 138 l14 -6" stroke-width="7"/></g>'
+      + '<ellipse cx="20" cy="154" rx="18" ry="13"/><ellipse cx="5" cy="158" rx="9" ry="7"/></g>'
+      + '<circle cx="16" cy="149" r="3.4" fill="'+EYE+'"/><circle cx="17" cy="148" r="1.3" fill="'+GLINT+'"/>'),
+
+    /* tyrannosaurus */
+    svg('<g fill="currentColor">'
+      + '<path d="M166 126 C202 116 224 128 242 156 C210 156 186 148 162 140 Z"/>'
+      + '<ellipse cx="130" cy="136" rx="42" ry="39"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M92 86 C100 102 106 114 114 122" stroke-width="30"/>'
+      + '<path d="M104 126 l-14 -20" stroke-width="11"/><path d="M118 122 l-6 -22" stroke-width="11"/>'
+      + '<path d="M112 166 v20" stroke-width="33"/><path d="M150 164 v22" stroke-width="27"/>'
+      + '<path d="M96 190 h32" stroke-width="15"/><path d="M138 190 h30" stroke-width="15"/></g>'
+      + '<ellipse cx="72" cy="58" rx="40" ry="29"/><ellipse cx="34" cy="66" rx="18" ry="15"/></g>'
+      + '<circle cx="76" cy="46" r="5.2" fill="'+EYE+'"/><circle cx="78" cy="44" r="1.9" fill="'+GLINT+'"/>'
+      + '<path d="M30 72 q24 16 50 4" stroke="'+EYE+'" stroke-width="3.4" fill="none" stroke-linecap="round"/>'
+      + '<path d="M44 76 l4 8 l7 -6 Z" fill="'+GLINT+'"/>'),
+
+    /* triceratops */
+    svg('<g fill="currentColor">'
+      + '<path d="M202 136 C226 130 238 140 248 162 C226 162 212 156 196 150 Z"/>'
+      + '<ellipse cx="160" cy="148" rx="48" ry="36"/>'
+      + '<path d="M118 106 C92 104 74 122 76 150 C78 176 98 190 122 188 C110 162 110 130 118 106 Z"/>'
+      + '<path d="M78 122 L60 112 L80 132 Z"/><path d="M76 148 L54 146 L78 158 Z"/>'
+      + '<path d="M84 174 L66 180 L92 184 Z"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M130 178 v22" stroke-width="22"/><path d="M162 180 v20" stroke-width="22"/>'
+      + '<path d="M190 176 v24" stroke-width="22"/>'
+      + '<path d="M74 130 L58 100" stroke-width="10"/><path d="M94 126 L88 94" stroke-width="10"/>'
+      + '<path d="M60 146 L48 130" stroke-width="7"/></g>'
+      + '<ellipse cx="90" cy="152" rx="36" ry="25"/><path d="M52 152 L68 142 L68 164 Z"/></g>'
+      + '<circle cx="82" cy="144" r="4.2" fill="'+EYE+'"/><circle cx="83.4" cy="142.6" r="1.5" fill="'+GLINT+'"/>'),
+
+    /* pterodactyl */
+    svg('<g fill="currentColor">'
+      + '<path d="M112 118 C80 90 44 78 14 82 C40 102 72 126 108 134 Z"/>'
+      + '<path d="M138 118 C170 90 206 78 236 82 C210 102 178 126 142 134 Z"/>'
+      + '<ellipse cx="125" cy="126" rx="26" ry="19"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M116 144 v20" stroke-width="9"/><path d="M134 144 v20" stroke-width="9"/>'
+      + '<path d="M112 116 C108 108 104 102 100 98" stroke-width="18"/></g>'
+      + '<ellipse cx="100" cy="98" rx="21" ry="15"/><path d="M62 98 L96 90 L96 108 Z"/>'
+      + '<path d="M106 84 L142 62 L114 94 Z"/></g>'
+      + '<circle cx="96" cy="93" r="3.8" fill="'+EYE+'"/><circle cx="97.2" cy="91.8" r="1.4" fill="'+GLINT+'"/>'),
+
+    /* ankylosaurus */
+    svg('<g fill="currentColor">'
+      + '<path d="M46 158 C40 128 72 108 118 108 C164 108 196 126 200 152 L200 164 Z"/>'
+      + '<circle cx="78" cy="116" r="8"/><circle cx="102" cy="111" r="8"/>'
+      + '<circle cx="126" cy="111" r="8"/><circle cx="150" cy="116" r="8"/><circle cx="174" cy="124" r="8"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M198 148 C214 144 224 138 230 132" stroke-width="15"/>'
+      + '<path d="M50 152 C42 154 34 154 28 154" stroke-width="20"/>'
+      + '<path d="M74 162 v30" stroke-width="20"/><path d="M104 164 v28" stroke-width="20"/>'
+      + '<path d="M150 164 v28" stroke-width="20"/><path d="M180 160 v32" stroke-width="20"/>'
+      + '<path d="M12 140 L4 128" stroke-width="7"/><path d="M34 138 L40 126" stroke-width="7"/></g>'
+      + '<circle cx="240" cy="126" r="17"/>'
+      + '<ellipse cx="24" cy="154" rx="22" ry="16"/><ellipse cx="6" cy="158" rx="10" ry="8"/></g>'
+      + '<circle cx="20" cy="148" r="3.6" fill="'+EYE+'"/><circle cx="21.2" cy="146.8" r="1.3" fill="'+GLINT+'"/>'),
+
+    /* parasaurolophus */
+    svg('<g fill="currentColor">'
+      + '<path d="M182 128 C212 120 232 132 246 160 C216 158 196 150 178 142 Z"/>'
+      + '<ellipse cx="140" cy="140" rx="46" ry="36"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M108 122 C94 106 84 88 80 72" stroke-width="26"/>'
+      + '<path d="M112 122 l-14 -18" stroke-width="10"/>'
+      + '<path d="M124 172 v20" stroke-width="28"/><path d="M158 170 v22" stroke-width="24"/>'
+      + '<path d="M108 194 h30" stroke-width="14"/><path d="M146 194 h28" stroke-width="14"/></g>'
+      + '<path d="M84 52 C104 32 130 20 152 18 C132 34 108 50 92 64 Z"/>'
+      + '<ellipse cx="74" cy="64" rx="26" ry="18"/><ellipse cx="48" cy="70" rx="15" ry="11"/></g>'
+      + '<circle cx="68" cy="57" r="4.2" fill="'+EYE+'"/><circle cx="69.4" cy="55.6" r="1.5" fill="'+GLINT+'"/>'
+      + '<path d="M40 78 q8 6 14 2" stroke="'+EYE+'" stroke-width="2.6" fill="none" stroke-linecap="round"/>'),
+
+    /* spinosaurus */
+    svg('<g fill="currentColor">'
+      + '<path d="M178 132 C210 124 230 136 246 164 C214 162 194 154 174 146 Z"/>'
+      + '<path d="M96 118 C104 66 134 50 172 60 C180 92 176 114 172 126 Z"/>'
+      + '<ellipse cx="134" cy="140" rx="46" ry="34"/>'
+      + '<g stroke="currentColor" stroke-linecap="round" fill="none">'
+      + '<path d="M104 124 C92 110 84 98 78 88" stroke-width="26"/>'
+      + '<path d="M108 130 l-12 -16" stroke-width="10"/>'
+      + '<path d="M118 168 v22" stroke-width="30"/><path d="M154 166 v24" stroke-width="26"/>'
+      + '<path d="M102 192 h32" stroke-width="14"/><path d="M140 192 h30" stroke-width="14"/></g>'
+      + '<ellipse cx="64" cy="80" rx="30" ry="18"/><ellipse cx="30" cy="86" rx="18" ry="11"/></g>'
+      + '<circle cx="68" cy="72" r="4.4" fill="'+EYE+'"/><circle cx="69.5" cy="70.5" r="1.6" fill="'+GLINT+'"/>'
+      + '<path d="M20 92 q22 10 44 2" stroke="'+EYE+'" stroke-width="3" fill="none" stroke-linecap="round"/>')
+  ];
+  function renderDino(i){
+    var slot = $('dinoSlot');
+    slot.innerHTML = DINOS[i % DINOS.length];
+    slot.style.color = COLORS[i % COLORS.length];
+  }
+
+  /* ---------- speech: say a word N times with a pause between ---------- */
+  function dino(s){ $('dinoBox').dataset.state = s; }
+  function speakWord(text, times){
+    if (!('speechSynthesis' in window)) return;
+    var mine = ++seq, said = 0;
+    speechSynthesis.cancel();
+    dino('speaking');
+    function once(){
+      if (mine !== seq) return;
+      var u = new SpeechSynthesisUtterance(text);
+      if (chosen) { u.voice = chosen; u.lang = chosen.lang; }
+      u.rate = state.rate;
+      u.onend = function(){
+        if (mine !== seq) return;
+        said++;
+        if (said < times) setTimeout(once, GAP); else dino('idle');
+      };
+      u.onerror = function(){ if (mine === seq) dino('idle'); };
+      speechSynthesis.speak(u);
+    }
+    setTimeout(once, 90);
+  }
+  function stopSpeech(){ seq++; speechSynthesis.cancel(); dino('idle'); }
+
+  /* ---------- persistence ---------- */
+  function apply(d){
+    if (!d) return;
+    if (d.raw) $('words').value = d.raw;
+    if (d.rate) { state.rate = d.rate; $('rate').value = d.rate; $('rateVal').textContent = fmtRate(d.rate); }
+    if (d.times) { state.times = d.times; setSeg(d.times); }
+  }
+  function readLocal(){
+    try { var v = localStorage.getItem(KEY); if (v) apply(JSON.parse(v)); } catch(e){}
+  }
+  function save(){
+    var payload = JSON.stringify({ raw: state.raw, rate: state.rate, times: state.times });
+    if (window.storage) {
+      try { window.storage.set(KEY, payload, false); return; } catch(e){}
+    }
+    try { localStorage.setItem(KEY, payload); } catch(e){}
+  }
+  function restore(){
+    if (window.storage) {
+      window.storage.get(KEY, false).then(function(r){
+        if (r && r.value) apply(JSON.parse(r.value)); else readLocal();
+        parseWords();
+      }).catch(function(){ readLocal(); parseWords(); });
+      return;
+    }
+    readLocal();
+    parseWords();
+  }
+  function fmtRate(r){ return (Math.round(r*100)/100) + '\u00D7'; }
+
+  /* ---------- setup ---------- */
+  function parseWords(){
+    state.raw = $('words').value;
+    var w = state.raw.split(/[\n,]/), out = [];
+    for (var k=0;k<w.length;k++){ var t = w[k].trim(); if (t) out.push(t); }
+    state.words = out.slice(0,40);
+    var n = state.words.length;
+    $('count').textContent = n ? (n + (n === 1 ? ' word ready' : ' words ready')) : 'No words yet';
+    $('start').disabled = n === 0;
+  }
+  $('words').addEventListener('input', function(){ parseWords(); save(); });
+  $('rate').addEventListener('input', function(e){
+    state.rate = parseFloat(e.target.value);
+    $('rateVal').textContent = fmtRate(state.rate);
+    save();
+  });
+  $('test').addEventListener('click', function(){ speakWord(state.words[0] || 'spelling', 1); });
+
+  function setSeg(n){
+    var b = $('seg').children;
+    for (var k=0;k<b.length;k++) b[k].setAttribute('aria-pressed', String(+b[k].dataset.times === +n));
+  }
+  $('seg').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    state.times = +b.dataset.times; setSeg(state.times); save();
+  });
+
+  function keepAwake(on){
+    try {
+      if (on && 'wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(w){ wake = w; }).catch(function(){});
+      else if (wake) { wake.release(); wake = null; }
+    } catch(e){}
+  }
+
+  /* ---------- practice ---------- */
+  function renderDots(){
+    var d = $('dots'); d.innerHTML = '';
+    for (var k=0;k<state.words.length;k++){
+      var s = document.createElement('span');
+      s.className = 'dot' + (k < state.i ? ' done' : k === state.i ? ' now' : '');
+      d.appendChild(s);
+    }
+    $('prev').disabled = state.i === 0;
+  }
+  function playCurrent(){ renderDots(); renderDino(state.i); speakWord(state.words[state.i], state.times); }
+  function begin(){ state.i = 0; show('practice'); keepAwake(true); setTimeout(playCurrent, 260); }
+  function goHome(){ stopSpeech(); keepAwake(false); show('setup'); }
+
+  $('start').addEventListener('click', begin);
+  $('say').addEventListener('click', function(){ speakWord(state.words[state.i], state.times); });
+  $('prev').addEventListener('click', function(){ if (state.i > 0) { state.i--; playCurrent(); } });
+  $('next').addEventListener('click', function(){
+    if (state.i < state.words.length - 1) { state.i++; playCurrent(); } else finish();
+  });
+  $('homeBtn').addEventListener('click', goHome);
+  $('homeBtn2').addEventListener('click', goHome);
+
+  /* ---------- review ---------- */
+  function finish(){
+    stopSpeech();
+    var n = state.words.length;
+    $('rvTitle').textContent = n + (n === 1 ? ' word practised' : ' words practised');
+    var list = $('list'); list.innerHTML = '';
+    state.words.forEach(function(w, k){
+      var b = document.createElement('button');
+      b.className = 'word';
+      b.innerHTML = '<span class="n">' + (k+1) + '</span><span class="w"></span>';
+      b.querySelector('.w').textContent = w;
+      b.addEventListener('click', function(){ speakWord(w, 1); });
+      list.appendChild(b);
+    });
+    show('review');
+  }
+  $('again').addEventListener('click', begin);
+  $('newList').addEventListener('click', function(){ keepAwake(false); show('setup'); $('words').focus(); });
+
+  /* ---------- boot ---------- */
+  if ('speechSynthesis' in window){
+    pickVoice();
+    speechSynthesis.onvoiceschanged = pickVoice;
+    setTimeout(pickVoice, 400);
+    setTimeout(pickVoice, 1200);
+  }
+  restore();
+})();
+</script>
