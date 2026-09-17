@@ -678,7 +678,7 @@
     "than": ["I am taller ___ my sister.", "📏"],
     "thank": ["I want to ___ you.", "🙏"],
     "that": ["___ is my favourite book.", "📘"],
-    "the": ["___ dog barked at the postman.", "🐕"],
+    "the": ["___ dog barked all night long.", "🐕"],
     "their": ["The kids found ___ shoes.", "👟"],
     "them": ["I gave ___ some stickers.", "⭐"],
     "then": ["We ate, ___ we played.", "🎯"],
@@ -744,6 +744,26 @@
     var e = BANK[word] || BANK[word.toLowerCase()];
     return e ? { sent:e[0], pic:e[1] } : null;
   }
+  /* the word must never be readable anywhere on screen while he is spelling it,
+     including on our own button captions ("Back", "Again", "Next", "Show the word") */
+  function says(text, w){
+    return new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(text);
+  }
+  function safeLabel(cands, w){
+    for (var k=0;k<cands.length;k++) if (!says(cands[k], w)) return cands[k];
+    return cands[cands.length-1];
+  }
+  var CAPS = null;
+  function guardCaptions(w){
+    if (!CAPS) {
+      CAPS = [];
+      var els = document.querySelectorAll('.controls .caption');
+      for (var k=0;k<els.length;k++) CAPS.push({ el: els[k], text: els[k].textContent });
+    }
+    for (var j=0;j<CAPS.length;j++){
+      CAPS[j].el.textContent = says(CAPS[j].text, w) ? '' : CAPS[j].text;
+    }
+  }
   function renderClue(i){
     var c = state.clues[i], box = $('clue'), pic = $('cluePic'),
         sent = $('clueSent'), btn = $('revealBtn');
@@ -764,7 +784,7 @@
       }
       sent.style.display = '';
       btn.hidden = false;
-      btn.textContent = 'Show the word';
+      btn.textContent = safeLabel(['Show the word', 'Reveal'], state.words[i]);
       btn.dataset.shown = 'no';
     } else {
       sent.style.display = 'none';
@@ -780,7 +800,8 @@
       bs[k].classList.toggle('shown', on);
     }
     btn.dataset.shown = on ? 'yes' : 'no';
-    btn.textContent = on ? 'Hide the word' : 'Show the word';
+    btn.textContent = on ? safeLabel(['Hide the word', 'Hide it'], w)
+                         : safeLabel(['Show the word', 'Reveal'], w);
   }
 
   /* ---------- speech: say a word N times with a pause between ---------- */
@@ -901,7 +922,10 @@
     }
     $('prev').disabled = state.i === 0;
   }
-  function playCurrent(){ renderDots(); renderDino(state.i); renderClue(state.i); speakWord(state.words[state.i], state.times); }
+  function playCurrent(){
+    renderDots(); renderDino(state.i); guardCaptions(state.words[state.i]);
+    renderClue(state.i); speakWord(state.words[state.i], state.times);
+  }
   function begin(){ state.i = 0; show('practice'); keepAwake(true); setTimeout(playCurrent, 260); }
   function goHome(){ stopSpeech(); keepAwake(false); show('setup'); }
 
