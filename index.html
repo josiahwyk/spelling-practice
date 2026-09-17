@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spelling Practice</title>
 <style>
@@ -42,6 +43,11 @@
     font-family:var(--font-chalk);font-size:22px;line-height:41px;color:var(--ink);resize:none;outline:none}
   #words:focus{border-color:var(--board)}
   .count{font-size:14px;color:var(--ink-dim);margin-top:8px}
+  .hint{font-size:13px;line-height:1.55;color:var(--ink-dim);margin-top:10px;
+    padding:10px 12px;border-radius:10px;background:rgba(159,182,168,.18)}
+  .hint code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;
+    color:var(--ink);display:inline-block;margin-top:4px;word-break:break-word}
+  .hint b{color:var(--ink)}
   .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   input[type=range]{flex:1;min-width:170px;accent-color:var(--board);height:34px}
   .tiny-btn{padding:13px 20px;border-radius:10px;border:1.5px solid var(--board);color:var(--board);font-size:15px;white-space:nowrap}
@@ -73,7 +79,23 @@
   .dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--chalk-dim)}
   .dot.done{background:var(--mint);border-color:var(--mint)}
   .dot.now{background:var(--yellow);border-color:var(--yellow);transform:scale(1.28)}
-  .stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%}
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:clamp(8px,2.4vh,22px);width:100%;min-height:0}
+
+  /* ---------- Sentence clue card ---------- */
+  .clue{display:none;flex-direction:column;align-items:center;gap:12px;text-align:center;
+    max-width:min(760px,92vw);padding:18px 24px;border-radius:20px;
+    border:2px solid var(--chalk-faint);background:rgba(243,239,226,.05)}
+  .clue.on{display:flex}
+  .clue .pic{font-size:clamp(42px,8.5vw,68px);line-height:1}
+  .clue .sent{font-family:var(--font-chalk);font-size:clamp(21px,3.4vw,31px);line-height:1.5}
+  .clue .blank{display:inline-block;min-width:3.2em;border-bottom:3px solid var(--yellow);
+    color:var(--yellow);line-height:1.1}
+  .clue .blank.shown{border-bottom-color:transparent}
+  .reveal{padding:11px 22px;border-radius:12px;border:2px solid var(--chalk-dim);
+    color:var(--chalk-dim);font-family:var(--font-ui);font-size:15px}
+  .reveal:active{background:rgba(243,239,226,.1)}
+  .reveal[hidden]{display:none}
   .controls{display:flex;align-items:center;gap:clamp(18px,5vw,52px);padding-bottom:6px}
   .ctrl{display:flex;flex-direction:column;align-items:center}
   .prev{width:clamp(92px,15vw,112px);height:clamp(92px,15vw,112px);border-radius:50%;
@@ -109,7 +131,7 @@
   .dinoWrap{display:flex;align-items:center;gap:8px}
   .waves{width:30px;height:auto;opacity:0;transition:opacity .2s}
   .dinoWrap[data-state="speaking"] .waves{opacity:1}
-  .dinoSlot svg{width:clamp(190px,28vw,290px);max-height:36vh;height:auto;display:block}
+  .dinoSlot svg{width:clamp(118px,17vw,182px);max-height:21vh;height:auto;display:block}
   .rex{width:clamp(118px,15vw,160px);height:auto}
   @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
   @keyframes hop{0%,100%{transform:translateY(0)}30%{transform:translateY(-16px)}62%{transform:translateY(-4px)}}
@@ -125,7 +147,7 @@
     <div class="head-row">
       <div>
         <h1>This week's words</h1>
-        <p class="sub">Type one word per line. He'll hear each word, write it on paper, then check the whole list at the end.</p>
+        <p class="sub">Type one word per line. He'll hear each word, write it on paper, then check the whole list at the end. Common words get a picture and a fill-in-the-blank sentence automatically.</p>
       </div>
       <svg class="doodle" viewBox="0 0 250 150" aria-hidden="true">
         <g fill="#9FB6A8">
@@ -159,6 +181,7 @@
       <textarea id="words" spellcheck="false" autocapitalize="off" autocorrect="off"
         placeholder="there&#10;should&#10;could&#10;come"></textarea>
       <div class="count" id="count">No words yet</div>
+      <div class="hint">Want your own sentence? Type it after the word, separated by <b>|</b> — use <b>___</b> for the blank, and add an emoji last:<br><code>come | Please ___ and play with me. | 🧸</code></div>
     </div>
 
     <div class="field">
@@ -203,6 +226,11 @@
         </g>
       </svg>
       <div class="dinoSlot" id="dinoSlot"></div>
+    </div>
+    <div class="clue" id="clue">
+      <div class="pic" id="cluePic" aria-hidden="true"></div>
+      <p class="sent" id="clueSent"></p>
+      <button class="reveal" id="revealBtn">Show the word</button>
     </div>
   </div>
 
@@ -287,7 +315,7 @@
 (function(){
   var $ = function(id){ return document.getElementById(id); };
   var KEY = 'spelling:v1';
-  var state = { words:[], i:0, rate:0.8, times:2, raw:'' };
+  var state = { words:[], i:0, clues:[], rate:0.8, times:2, raw:'' };
   var chosen = null, ranked = [], vIdx = 0, seq = 0, wake = null;
   var GAP = 1500;
 
@@ -441,10 +469,318 @@
       + '<circle cx="68" cy="72" r="4.4" fill="'+EYE+'"/><circle cx="69.5" cy="70.5" r="1.6" fill="'+GLINT+'"/>'
       + '<path d="M20 92 q22 10 44 2" stroke="'+EYE+'" stroke-width="3" fill="none" stroke-linecap="round"/>')
   ];
+  /* ---------- sentence + picture bank: common prep / Year 1 words ---------- */
+  /* word: [sentence with ___ for the blank, emoji that illustrates the sentence] */
+  var BANK = {
+    "a": ["I can see ___ big red bus.", "🚌"],
+    "about": ["This book is ___ a brave dog.", "📖"],
+    "after": ["We eat cake ___ dinner.", "🎂"],
+    "again": ["Can we play that game ___?", "🎮"],
+    "all": ["I ate ___ of my lunch.", "🍱"],
+    "am": ["I ___ five years old.", "🎈"],
+    "an": ["I would like ___ apple please.", "🍎"],
+    "and": ["I have a cat ___ a dog.", "🐱"],
+    "any": ["Are there ___ biscuits left?", "🍪"],
+    "are": ["We ___ going to the park.", "🏞️"],
+    "around": ["We ran ___ the big tree.", "🌳"],
+    "as": ["He is ___ tall ___ me.", "📏"],
+    "ask": ["I will ___ Mum for help.", "🙋"],
+    "asked": ["She ___ me to sit down.", "💬"],
+    "at": ["We are ___ the beach.", "🏖️"],
+    "away": ["The bird flew ___.", "🐦"],
+    "baby": ["The ___ is fast asleep.", "👶"],
+    "back": ["I went ___ inside for my hat.", "🧢"],
+    "bad": ["That was a ___ storm.", "⛈️"],
+    "ball": ["Throw the ___ to me!", "⚽"],
+    "be": ["I want to ___ a pilot.", "✈️"],
+    "because": ["I am happy ___ it is my birthday.", "🎉"],
+    "bed": ["I jumped into my warm ___.", "🛏️"],
+    "been": ["I have ___ to the zoo.", "🦁"],
+    "before": ["Wash your hands ___ dinner.", "🧼"],
+    "best": ["He is my ___ friend.", "🤝"],
+    "big": ["That is a very ___ elephant.", "🐘"],
+    "bike": ["I can ride my ___.", "🚲"],
+    "blue": ["The sky is bright ___.", "💙"],
+    "boat": ["The ___ sailed across the lake.", "⛵"],
+    "book": ["I read a funny ___.", "📚"],
+    "box": ["The toys are in the ___.", "📦"],
+    "boy": ["The ___ kicked the ball.", "👦"],
+    "bring": ["Please ___ me my shoes.", "👟"],
+    "brother": ["My ___ is older than me.", "👨‍👦"],
+    "brought": ["I ___ my lunch to school.", "🍎"],
+    "but": ["I like peas ___ not beans.", "🟢"],
+    "by": ["I sat ___ the window.", "🪟"],
+    "call": ["I will ___ my nan tonight.", "📞"],
+    "called": ["My dog is ___ Rex.", "🐕"],
+    "came": ["My friend ___ to my party.", "🎈"],
+    "can": ["I ___ tie my own shoes.", "👟"],
+    "car": ["We drove home in the ___.", "🚗"],
+    "cat": ["The ___ sat on my lap.", "🐈"],
+    "children": ["The ___ played in the sandpit.", "👫"],
+    "cold": ["My hands are very ___.", "❄️"],
+    "come": ["Please ___ and play with me.", "🧸"],
+    "could": ["I wish I ___ fly like a bird.", "🕊️"],
+    "cried": ["The baby ___ for her bottle.", "😢"],
+    "dad": ["My ___ makes the best pancakes.", "🥞"],
+    "dark": ["It gets ___ at night time.", "🌑"],
+    "day": ["What a sunny ___ it is.", "☀️"],
+    "did": ["I ___ all my homework.", "✏️"],
+    "do": ["What did you ___ today?", "🤔"],
+    "does": ["___ your dog like to swim?", "🐕"],
+    "dog": ["My ___ loves chasing sticks.", "🐶"],
+    "don't": ["Please ___ run inside.", "🛑"],
+    "door": ["Please shut the front ___.", "🚪"],
+    "down": ["I slid ___ the slippery slide.", "🛝️"],
+    "eat": ["I like to ___ watermelon.", "🍉"],
+    "end": ["We got to the ___ of the story.", "📕"],
+    "every": ["I brush my teeth ___ night.", "🦷"],
+    "eyes": ["Close your ___ and count to ten.", "👀"],
+    "far": ["The shop is too ___ to walk.", "🚶"],
+    "fast": ["That car is going very ___.", "🏎️"],
+    "father": ["My ___ drove me to school.", "👨"],
+    "find": ["I cannot ___ my other sock.", "🧦"],
+    "first": ["I was ___ in the race.", "🥇"],
+    "fish": ["The ___ swam in the pond.", "🐟"],
+    "five": ["I have ___ fingers on my hand.", "🖐️"],
+    "food": ["We packed ___ for the picnic.", "🧺"],
+    "for": ["This present is ___ you.", "🎁"],
+    "four": ["A dog has ___ legs.", "🐕"],
+    "friend": ["My ___ shared her pencils.", "👭"],
+    "friends": ["My ___ came over to play.", "👬"],
+    "from": ["This letter is ___ my nan.", "✉️"],
+    "fun": ["The party was so much ___.", "🎊"],
+    "gave": ["She ___ me a big hug.", "🤗"],
+    "get": ["I will ___ my jumper.", "🧥"],
+    "girl": ["The ___ climbed the ladder.", "👧"],
+    "give": ["Please ___ me the blue crayon.", "🖍️"],
+    "go": ["Let us ___ to the beach.", "🏖️"],
+    "goes": ["The bus ___ past our house.", "🚍"],
+    "going": ["We are ___ to the zoo.", "🦒"],
+    "good": ["You did a ___ job.", "👍"],
+    "got": ["I ___ a puppy for my birthday.", "🐕"],
+    "green": ["The grass is bright ___.", "💚"],
+    "had": ["We ___ ice cream after lunch.", "🍦"],
+    "hand": ["Hold my ___ to cross the road.", "🤚"],
+    "happy": ["I feel so ___ today.", "😄"],
+    "hard": ["This puzzle is very ___.", "🧩"],
+    "has": ["My sister ___ a new bike.", "🚲"],
+    "have": ["I ___ two goldfish.", "🐠"],
+    "he": ["___ kicked the ball over the fence.", "⚽"],
+    "head": ["I bumped my ___ on the door.", "🤕"],
+    "help": ["Can you ___ me carry this?", "💪"],
+    "her": ["I gave ___ a birthday card.", "💌"],
+    "here": ["Come and sit ___ with me.", "👇"]
+    ,"him": ["I passed ___ the ball.", "🏀"],
+    "his": ["That is ___ blue backpack.", "🎒"],
+    "home": ["We walked ___ from school.", "🏡"],
+    "hot": ["The soup is too ___.", "🍜"],
+    "house": ["We live in a green ___.", "🏠"],
+    "how": ["___ did you build that tower?", "🧱"],
+    "I": ["___ love reading books.", "📖"],
+    "if": ["We will swim ___ it is sunny.", "🏊"],
+    "in": ["My lunch is ___ my bag.", "🎒"],
+    "into": ["The frog jumped ___ the pond.", "🐸"],
+    "is": ["My cat ___ very fluffy.", "🐱"],
+    "it": ["___ is raining outside.", "🌧️"],
+    "jump": ["I can ___ over the puddle.", "💦"],
+    "just": ["I ___ finished my drawing.", "🎨"],
+    "keep": ["You can ___ that sticker.", "⭐"],
+    "kind": ["She is very ___ to everyone.", "💖"],
+    "know": ["I ___ how to whistle.", "🎵"],
+    "last": ["That was the ___ biscuit.", "🍪"],
+    "laugh": ["That joke made me ___.", "😂"],
+    "left": ["I turned ___ at the corner.", "⬅️"],
+    "let": ["Please ___ me have a turn.", "🙏"],
+    "like": ["I ___ strawberry ice cream.", "🍓"],
+    "little": ["A ___ mouse ran past.", "🐭"],
+    "live": ["We ___ near the beach.", "🏖️"],
+    "long": ["That snake is very ___.", "🐍"],
+    "look": ["___ at the rainbow!", "🌈"],
+    "looked": ["I ___ under my bed.", "🔦"],
+    "love": ["I ___ my family.", "❤️"],
+    "made": ["I ___ a card for Mum.", "💌"],
+    "make": ["Let us ___ a sandcastle.", "🏰"],
+    "man": ["A kind ___ helped us.", "👨"],
+    "many": ["How ___ apples are there?", "🍏"],
+    "may": ["___ I have a drink please?", "🥤"],
+    "me": ["Can you pass ___ the glue?", "🧴"],
+    "might": ["It ___ rain this afternoon.", "☔"],
+    "more": ["Can I have ___ pasta?", "🍝"],
+    "morning": ["I eat toast every ___.", "🍞"],
+    "most": ["I like dinosaurs the ___.", "🦕"],
+    "mother": ["My ___ reads me a story.", "👩"],
+    "move": ["Please ___ your chair in.", "🪑"],
+    "much": ["Thank you so ___.", "🙏"],
+    "mum": ["My ___ gave me a cuddle.", "🤗"],
+    "must": ["We ___ wear a helmet.", "⛑️"],
+    "my": ["This is ___ favourite hat.", "🧢"],
+    "name": ["What is your ___?", "🏷️"],
+    "near": ["The shop is ___ my house.", "🏪"],
+    "need": ["I ___ a new pencil.", "✏️"],
+    "new": ["I got ___ school shoes.", "👟"],
+    "next": ["It is my turn ___.", "➡️"],
+    "night": ["The stars come out at ___.", "⭐"],
+    "no": ["There is ___ milk left.", "🥛"],
+    "not": ["I am ___ tired yet.", "😊"],
+    "now": ["Can we go ___?", "⏰"],
+    "of": ["I ate a bowl ___ cereal.", "🥣"],
+    "off": ["Please turn ___ the light.", "💡"],
+    "old": ["That tree is very ___.", "🌳"],
+    "on": ["The book is ___ the table.", "📗"],
+    "once": ["I went there ___ before.", "1️⃣"],
+    "one": ["I only have ___ balloon.", "🎈"],
+    "only": ["There is ___ one left.", "☝️"],
+    "or": ["Do you want juice ___ water?", "🧃"],
+    "other": ["Where is my ___ shoe?", "👞"],
+    "our": ["This is ___ new puppy.", "🐕"],
+    "out": ["The cat ran ___ the door.", "🚪"],
+    "over": ["The ball went ___ the fence.", "🏐"],
+    "park": ["We played at the ___.", "🎠"],
+    "party": ["My birthday ___ is on Saturday.", "🎉"],
+    "people": ["Lots of ___ came to watch.", "👪"],
+    "play": ["Can I ___ outside?", "🪁"],
+    "played": ["We ___ soccer at lunch.", "⚽"],
+    "please": ["Can I have a turn ___?", "🙏"],
+    "put": ["___ your bag on the hook.", "🎒"],
+    "rain": ["The ___ made big puddles.", "🌧️"],
+    "ran": ["I ___ all the way home.", "🏃"],
+    "read": ["I like to ___ before bed.", "📖"],
+    "red": ["I painted the barn ___.", "❤️"],
+    "ride": ["I can ___ my scooter.", "🛴"],
+    "right": ["I turned ___ at the shop.", "➡️"],
+    "room": ["My ___ is full of toys.", "🧸"],
+    "run": ["I can ___ really fast.", "🏃"],
+    "said": ["Mum ___ it is bath time.", "🛁"],
+    "same": ["We have the ___ lunchbox.", "🍱"],
+    "sat": ["I ___ next to my friend.", "🪑"],
+    "saw": ["I ___ a kangaroo today.", "🦘"],
+    "school": ["I walk to ___ every day.", "🏫"],
+    "sea": ["We swam in the ___.", "🌊"],
+    "see": ["I can ___ the moon.", "🌙"],
+    "she": ["___ won the running race.", "🏅"],
+    "shop": ["We went to the ___ for bread.", "🏪"],
+    "should": ["We ___ wash our hands.", "🧼"],
+    "show": ["Can you ___ me your drawing?", "🖼️"],
+    "sister": ["My ___ is learning to walk.", "👧"],
+    "sit": ["Please ___ on the mat.", "🧘"],
+    "sleep": ["I ___ with my teddy.", "😴"],
+    "small": ["The kitten is very ___.", "🐱"],
+    "so": ["I am ___ excited!", "🤩"],
+    "some": ["Can I have ___ grapes?", "🍇"],
+    "soon": ["It will be dinner time ___.", "🍽️"],
+    "start": ["Let us ___ the game.", "🏁"],
+    "stay": ["Please ___ close to me.", "🤝"],
+    "stop": ["We ___ at the red light.", "🛑"],
+    "sun": ["The ___ is very bright today.", "☀️"],
+    "swim": ["I can ___ all the way.", "🏊"],
+    "take": ["___ your hat to the park.", "🧢"],
+    "tell": ["Can you ___ me a story?", "📖"],
+    "than": ["I am taller ___ my sister.", "📏"],
+    "thank": ["I want to ___ you.", "🙏"],
+    "that": ["___ is my favourite book.", "📘"],
+    "the": ["___ dog barked at the postman.", "🐕"],
+    "their": ["The kids found ___ shoes.", "👟"],
+    "them": ["I gave ___ some stickers.", "⭐"],
+    "then": ["We ate, ___ we played.", "🎯"],
+    "there": ["My bag is over ___.", "👉"],
+    "these": ["___ are my new pencils.", "✏️"],
+    "they": ["___ are building a sandcastle.", "🏰"],
+    "thing": ["What is that funny ___?", "🤔"],
+    "think": ["I ___ it will rain.", "🧠"],
+    "this": ["___ is my lunchbox.", "🍱"],
+    "three": ["I have ___ pet fish.", "🐠"],
+    "time": ["It is ___ for bed.", "⏰"],
+    "to": ["We went ___ the library.", "📚"],
+    "today": ["I have swimming ___.", "🏊"],
+    "together": ["We built the tower ___.", "🧱"],
+    "told": ["Dad ___ me a funny joke.", "😄"],
+    "too": ["I want to come ___.", "🙋"],
+    "took": ["I ___ my umbrella to school.", "☂️"],
+    "top": ["The cat sat on ___ of the fridge.", "🐱"],
+    "tree": ["A bird built a nest in the ___.", "🌳"],
+    "try": ["I will ___ my best.", "💪"],
+    "two": ["I have ___ front teeth missing.", "🦷"],
+    "under": ["My shoe was ___ the bed.", "🛏️"],
+    "up": ["The balloon floated ___.", "🎈"],
+    "us": ["Come with ___ to the park.", "👪"],
+    "very": ["That giraffe is ___ tall.", "🦒"],
+    "walk": ["We ___ the dog every night.", "🐕"],
+    "want": ["I ___ to learn the drums.", "🥁"],
+    "was": ["It ___ a rainy day.", "🌧️"],
+    "watch": ["Let us ___ the sunset.", "🌅"],
+    "water": ["I drink ___ when I am thirsty.", "💧"],
+    "way": ["I know the ___ home.", "🗺️"],
+    "we": ["___ are going camping.", "⛺"],
+    "week": ["We go swimming every ___.", "📅"],
+    "well": ["You read that very ___.", "👏"],
+    "went": ["We ___ to the zoo.", "🦁"],
+    "were": ["We ___ playing in the garden.", "🌻"],
+    "what": ["___ is in the box?", "📦"],
+    "when": ["___ is your birthday?", "🎂"],
+    "where": ["___ did you put my hat?", "🧢"],
+    "which": ["___ one do you want?", "🤔"],
+    "white": ["The clouds are fluffy and ___.", "☁️"],
+    "who": ["___ is knocking at the door?", "🚪"],
+    "why": ["___ is the sky blue?", "💡"],
+    "will": ["I ___ help you tidy up.", "🧹"],
+    "window": ["I looked out the ___.", "🪟"],
+    "with": ["I played ___ my brother.", "🧸"],
+    "work": ["Dad goes to ___ on the bus.", "💼"],
+    "would": ["___ you like a biscuit?", "🍪"],
+    "write": ["I can ___ my own name.", "✍️"],
+    "yes": ["___, I would love to come.", "✅"],
+    "you": ["Can ___ help me please?", "🙋"],
+    "your": ["Is this ___ jumper?", "🧥"]
+  };
+
   function renderDino(i){
     var slot = $('dinoSlot');
     slot.innerHTML = DINOS[i % DINOS.length];
     slot.style.color = COLORS[i % COLORS.length];
+  }
+
+  /* ---------- clue lookup + sentence card ---------- */
+  function lookup(word){
+    var e = BANK[word] || BANK[word.toLowerCase()];
+    return e ? { sent:e[0], pic:e[1] } : null;
+  }
+  function renderClue(i){
+    var c = state.clues[i], box = $('clue'), pic = $('cluePic'),
+        sent = $('clueSent'), btn = $('revealBtn');
+    if (!c || (!c.sent && !c.pic)) { box.classList.remove('on'); return; }
+    pic.textContent = c.pic || '';
+    pic.style.display = c.pic ? '' : 'none';
+    sent.innerHTML = '';
+    if (c.sent) {
+      var segs = c.sent.split('___');
+      for (var k=0;k<segs.length;k++){
+        sent.appendChild(document.createTextNode(segs[k]));
+        if (k < segs.length - 1){
+          var b = document.createElement('span');
+          b.className = 'blank';
+          b.textContent = '    ';
+          sent.appendChild(b);
+        }
+      }
+      sent.style.display = '';
+      btn.hidden = false;
+      btn.textContent = 'Show the word';
+      btn.dataset.shown = 'no';
+    } else {
+      sent.style.display = 'none';
+      btn.hidden = true;
+    }
+    box.classList.add('on');
+  }
+  function toggleReveal(){
+    var btn = $('revealBtn'), on = btn.dataset.shown !== 'yes';
+    var bs = $('clueSent').querySelectorAll('.blank'), w = state.words[state.i];
+    for (var k=0;k<bs.length;k++){
+      bs[k].textContent = on ? w : '    ';
+      bs[k].classList.toggle('shown', on);
+    }
+    btn.dataset.shown = on ? 'yes' : 'no';
+    btn.textContent = on ? 'Hide the word' : 'Show the word';
   }
 
   /* ---------- speech: say a word N times with a pause between ---------- */
@@ -504,9 +840,29 @@
   /* ---------- setup ---------- */
   function parseWords(){
     state.raw = $('words').value;
-    var w = state.raw.split(/[\n,]/), out = [];
-    for (var k=0;k<w.length;k++){ var t = w[k].trim(); if (t) out.push(t); }
+    var lines = state.raw.split(/\n/), out = [], clues = [];
+    function add(raw){
+      var parts = raw.split('|');
+      var w = parts[0].trim();
+      if (!w) return;
+      var sent = (parts[1] || '').trim(), pic = (parts[2] || '').trim(), c = null;
+      if (sent) {
+        if (sent.indexOf('___') < 0) sent += ' (___)';
+        c = { sent: sent, pic: pic };
+      } else {
+        c = lookup(w);
+        if (c && pic) c = { sent: c.sent, pic: pic };
+        else if (!c && pic) c = { sent: '', pic: pic };
+      }
+      out.push(w); clues.push(c);
+    }
+    for (var k=0;k<lines.length;k++){
+      var line = lines[k];
+      if (line.indexOf('|') >= 0) add(line);
+      else { var cs = line.split(','); for (var j=0;j<cs.length;j++) add(cs[j]); }
+    }
     state.words = out.slice(0,40);
+    state.clues = clues.slice(0,40);
     var n = state.words.length;
     $('count').textContent = n ? (n + (n === 1 ? ' word ready' : ' words ready')) : 'No words yet';
     $('start').disabled = n === 0;
@@ -545,7 +901,7 @@
     }
     $('prev').disabled = state.i === 0;
   }
-  function playCurrent(){ renderDots(); renderDino(state.i); speakWord(state.words[state.i], state.times); }
+  function playCurrent(){ renderDots(); renderDino(state.i); renderClue(state.i); speakWord(state.words[state.i], state.times); }
   function begin(){ state.i = 0; show('practice'); keepAwake(true); setTimeout(playCurrent, 260); }
   function goHome(){ stopSpeech(); keepAwake(false); show('setup'); }
 
@@ -555,6 +911,7 @@
   $('next').addEventListener('click', function(){
     if (state.i < state.words.length - 1) { state.i++; playCurrent(); } else finish();
   });
+  $('revealBtn').addEventListener('click', toggleReveal);
   $('homeBtn').addEventListener('click', goHome);
   $('homeBtn2').addEventListener('click', goHome);
 
