@@ -31,7 +31,7 @@ jetty | We fished off the wooden ___. | 🎣
 ```
 
 Both the sentence and the emoji are optional. A word with neither, and not in the built-in list,
-simply shows the dinosaur on its own — nothing breaks.
+simply shows a speaker icon on its own — nothing breaks.
 
 Note that abstract sight words ("could", "there", "should") have no picture of their own, so the
 picture illustrates the *sentence* rather than the word: "I wish I ___ fly like a bird." with a bird.
