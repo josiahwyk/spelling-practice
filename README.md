@@ -41,3 +41,7 @@ Your word list, speed, and repeat settings are saved in the browser (`localStora
 ## A note on voice quality
 
 The read-aloud voice uses your browser's built-in text-to-speech (the Web Speech API), which depends on which system voice is installed. On a Mac, the default "compact" voices sound fairly robotic. For a much more natural voice, download an **Enhanced** or **Premium** voice under **System Settings → Accessibility → Spoken Content → Manage Voices** — the app will prefer the higher-quality voice automatically once it's installed.
+
+## License
+
+All rights reserved. See [LICENSE](LICENSE). No permission is granted to use, copy, modify or distribute this code without prior written permission.
